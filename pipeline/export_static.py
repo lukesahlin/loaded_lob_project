@@ -16,7 +16,7 @@ from pathlib import Path
 
 import duckdb
 
-BUCKET_MINUTES = 1
+BUCKET_SECONDS = 5
 
 GREEK_COLS = [
     "call_charm", "call_delta", "call_gamma", "call_rho",
@@ -69,7 +69,7 @@ def export_all(parquet_path: str, out_dir: Path) -> None:
     # basis
     write(out_dir, "basis", run(con, f"""
         SELECT
-            time_bucket(INTERVAL '{BUCKET_MINUTES} minutes', timestamp::TIMESTAMPTZ) AS time_bucket,
+            time_bucket(INTERVAL '{BUCKET_SECONDS} seconds', timestamp::TIMESTAMPTZ) AS time_bucket,
             AVG(current_es_price / 100.0) AS es_price,
             AVG(spx_price)                AS spx_price,
             AVG(current_es_price / 100.0 - spx_price) AS basis
@@ -87,7 +87,7 @@ def export_all(parquet_path: str, out_dir: Path) -> None:
     write(out_dir, "net_flow", run(con, f"""
         WITH sized AS (
             SELECT
-                time_bucket(INTERVAL '{BUCKET_MINUTES} minutes', timestamp::TIMESTAMPTZ) AS tb,
+                time_bucket(INTERVAL '{BUCKET_SECONDS} seconds', timestamp::TIMESTAMPTZ) AS tb,
                 call_delta, put_delta,
                 list_aggregate(json_extract(MBO, '$[*]')::DOUBLE[], 'sum') AS mbo_size
             FROM {t}
@@ -106,7 +106,7 @@ def export_all(parquet_path: str, out_dir: Path) -> None:
     write(out_dir, "heatmap", run(con, f"""
         WITH parsed AS (
             SELECT
-                time_bucket(INTERVAL '{BUCKET_MINUTES} minutes', timestamp::TIMESTAMPTZ) AS time_bucket,
+                time_bucket(INTERVAL '{BUCKET_SECONDS} seconds', timestamp::TIMESTAMPTZ) AS time_bucket,
                 future_strike,
                 list_aggregate(json_extract(MBO, '$[*]')::DOUBLE[], 'sum') AS mbo_sum
             FROM {t}
@@ -125,7 +125,7 @@ def export_all(parquet_path: str, out_dir: Path) -> None:
     # spread
     write(out_dir, "spread", run(con, f"""
         WITH b AS (
-            SELECT time_bucket(INTERVAL '{BUCKET_MINUTES} minutes', timestamp::TIMESTAMPTZ) AS tb,
+            SELECT time_bucket(INTERVAL '{BUCKET_SECONDS} seconds', timestamp::TIMESTAMPTZ) AS tb,
                    Side, AVG(future_strike) AS avg_strike, AVG(spx_price) AS avg_spx_price
             FROM {t} GROUP BY tb, Side
         ),

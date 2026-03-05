@@ -25,8 +25,8 @@ export function Signals() {
     if (!ps) return []
     return ps.map(d => ({
       ...d,
-      pulling:  d.MBO_pulling_stacking === -1 ? d.spx_price : null,
-      stacking: d.MBO_pulling_stacking === 1  ? d.spx_price : null,
+      pulling:  d.MBO_pulling_stacking < 0 ? d.spx_price : null,
+      stacking: d.MBO_pulling_stacking > 0 ? d.spx_price : null,
     }))
   }, [ps])
 
