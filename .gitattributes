@@ -1,0 +1,9 @@
+# Normalize line endings to LF on commit (cross-platform safe)
+* text=auto eol=lf
+
+# Force binary treatment for these types
+*.parquet binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
