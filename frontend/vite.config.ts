@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// VITE_BASE: set to '/repo-name/' for GitHub Pages, leave unset for local/Docker
+// VITE_BASE: set to '/repo-name/' for GitHub Pages, leave unset for local dev
 const base = process.env.VITE_BASE ?? '/'
 
 export default defineConfig({
