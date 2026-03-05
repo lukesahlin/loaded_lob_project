@@ -53,9 +53,7 @@ jobs:
       - name: Build
         working-directory: frontend
         env:
-          # Base path matches the GitHub repo name automatically
           VITE_BASE: /${{ github.event.repository.name }}/
-          # VITE_API_URL left unset → frontend loads from static /data/*.json files
         run: npm run build
 
       - name: Upload Pages artifact
