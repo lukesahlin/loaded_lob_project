@@ -15,9 +15,12 @@ env/
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 data/raw/*.csv
-data/*.parquet
+# data/flow.parquet is committed (10 MB) so GitHub Actions can export static JSON
 data/flow/
 pipeline/processed_files.log
+
+# Pre-generated static JSON (rebuilt in CI, not committed)
+frontend/public/data/
 
 # ── Node / Frontend ───────────────────────────────────────────────────────────
 frontend/node_modules/

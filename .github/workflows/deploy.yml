@@ -19,14 +19,26 @@ jobs:
   build:
     name: Build frontend
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ── Step 1: Generate static JSON from Parquet ──────────────────────────
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install polars pyarrow duckdb
+
+      - name: Export static chart data
+        run: python pipeline/export_static.py --parquet data/flow.parquet --out frontend/public/data
+
+      # ── Step 2: Build React frontend ───────────────────────────────────────
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -34,16 +46,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install npm dependencies
+        working-directory: frontend
         run: npm ci
 
       - name: Build
+        working-directory: frontend
         env:
-          # Derive the base path from the repository name automatically.
-          # e.g. github.com/user/options-flow-platform → /options-flow-platform/
+          # Base path matches the GitHub repo name automatically
           VITE_BASE: /${{ github.event.repository.name }}/
-          # Set your hosted FastAPI URL as a repository secret named VITE_API_URL
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          # VITE_API_URL left unset → frontend loads from static /data/*.json files
         run: npm run build
 
       - name: Upload Pages artifact
