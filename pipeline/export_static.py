@@ -37,12 +37,13 @@ def tbl(parquet_path: str) -> str:
 
 
 def run(con: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
-    rows = con.execute(sql).fetchdf().to_dict(orient="records")
-    # Replace float NaN/inf with None so json.dumps produces valid JSON null
+    cursor = con.execute(sql)
+    cols = [desc[0] for desc in cursor.description]
+    # fetchall() returns plain Python types — no pandas/numpy dependency
     return [
         {k: (None if isinstance(v, float) and not math.isfinite(v) else v)
-         for k, v in row.items()}
-        for row in rows
+         for k, v in zip(cols, row)}
+        for row in cursor.fetchall()
     ]
 
 
