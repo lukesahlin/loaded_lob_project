@@ -28,7 +28,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Python dependencies
-        run: pip install polars pyarrow duckdb
+        run: pip install polars pyarrow duckdb pytz
 
       - name: Generate static chart data from Parquet
         run: python pipeline/export_static.py --parquet data/flow.parquet --out frontend/public/data
