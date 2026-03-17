@@ -1,10 +1,8 @@
 import { useState } from 'react'
-import { format } from 'date-fns'
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, BarChart, Bar, Legend, ScatterChart, Scatter, ZAxis,
 } from 'recharts'
-import Plot from 'react-plotly.js'
 import { ChartCard } from '../components/ChartCard'
 import { FilterBar } from '../components/FilterBar'
 import { LoadingSpinner } from '../components/LoadingSpinner'
@@ -15,10 +13,20 @@ const GREEK_OPTIONS = [
   'call_vega', 'call_gamma', 'call_vanna', 'call_delta',
   'call_theta', 'call_vomma', 'call_charm', 'call_rho',
 ]
+
+const GREEK_DESCRIPTIONS: Record<string, { short: string; detail: string }> = {
+  call_vega:  { short: 'Sensitivity to implied volatility', detail: 'A $1 rise in IV increases the call price by this amount. Peaks ATM and decays toward the wings. High vega concentration = IV moves cause large P&L swings here; watch for dealer vega-hedging flows when VIX spikes.' },
+  call_gamma: { short: 'Rate of delta change per $1 SPX move', detail: 'Peaks sharply ATM near expiry. Dealers who are short gamma must buy into rallies and sell into dips to stay delta-neutral — this amplifies intraday spot moves. Gamma walls at crowded strikes create magnetic price levels.' },
+  call_vanna: { short: 'dDelta / dVol — cross-exposure of delta to IV', detail: 'When IV falls, positive vanna strikes force dealers to buy deltas (rally fuel); when IV rises, they sell. The strongest vanna flip zones near ATM are key levels where a vol crush or spike mechanically moves spot.' },
+  call_delta: { short: 'Dollar sensitivity to a $1 SPX move', detail: 'Ranges 0–1 for calls; deep ITM ≈ 1, deep OTM ≈ 0. Aggregated across all open interest, this is the net dealer hedge book. A large delta cluster means small SPX moves require significant share hedges.' },
+  call_theta: { short: 'Daily time decay (P&L lost per day)', detail: 'Always negative for long options. Largest magnitude ATM and shortest DTE — option sellers collect this daily. Watch for theta cliffs near weekly expiry: rapid decay can force long-gamma holders to unwind, compressing realized vol.' },
+  call_vomma: { short: 'dVega / dVol — vega sensitivity to IV', detail: 'Also called volga. High in the wings; tells you how much vega itself changes when vol moves. High vomma positions benefit from vol-of-vol regimes (e.g., tail events) but lose on mean-reverting vol. Upper-right of vega/vomma scatter = most sensitive to vol regime shifts.' },
+  call_charm: { short: 'dDelta / dt — delta decay over time', detail: 'Tells dealers how much their delta hedge drifts overnight purely from time passing, with no price move. Largest near expiry and at low-delta OTM strikes. Monday-open rebalancing flows are partly driven by accumulated charm over the weekend.' },
+  call_rho:   { short: 'Sensitivity to interest rates', detail: 'Positive for calls; a 1% rate rise increases call value by this amount. Small for short-dated SPX options but material for LEAPS. Relevant when Fed decisions are pending — rho-driven flows are slow-moving but persistent.' },
+}
+
 const TICK_STYLE = { fill: '#64748b', fontSize: 10 }
 const TOOLTIP_STYLE = { background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }
-
-const COLORS = ['#6366f1','#34d399','#f59e0b','#f87171','#a78bfa','#38bdf8','#fb923c','#4ade80']
 
 export function Greeks() {
   const toParams = useFilterStore(s => s.toParams)
@@ -26,37 +34,22 @@ export function Greeks() {
   const [selectedGreek, setSelectedGreek] = useState('call_vega')
   const [metric, setMetric] = useState<'vanna' | 'charm'>('vanna')
 
-  const { data: surface,   isLoading: surfaceLoading }   = useGreeksSurface(selectedGreek, params)
+  const { data: surface,    isLoading: surfaceLoading }  = useGreeksSurface(selectedGreek, params)
   const { data: vannaCharm, isLoading: vcLoading }       = useVannaCharm(metric, params)
-  const { data: theta,     isLoading: thetaLoading }     = useTheta(params)
-  const { data: scatter,   isLoading: scatterLoading }   = useScatter(params)
+  const { data: theta,      isLoading: thetaLoading }    = useTheta(params)
+  const { data: scatter,    isLoading: scatterLoading }  = useScatter(params)
 
-  // Build Plotly surface data
-  const plotData = (() => {
-    if (!surface || !surface.length) return null
-    const strikes = [...new Set(surface.map(d => d.spx_strike))].sort((a, b) => a - b)
-    const ts = [...new Set(surface.map(d => d.t))].sort((a, b) => a - b)
-    const zMap: Record<string, Record<string, number>> = {}
-    surface.forEach(d => {
-      if (!zMap[d.spx_strike]) zMap[d.spx_strike] = {}
-      zMap[d.spx_strike][d.t] = d.greek_value
-    })
-    const z = strikes.map(s => ts.map(t => zMap[s]?.[t] ?? 0))
-    return { x: ts, y: strikes, z }
-  })()
+  // Single snapshot: all rows share one t value, so render as bar chart by strike
+  const surfaceBars = surface
+    ?.map(d => ({ spx_strike: d.spx_strike, value: d.greek_value }))
+    .sort((a, b) => a.spx_strike - b.spx_strike) ?? []
 
-  // Group theta by strike for multi-line chart
-  const strikeGroups = (() => {
-    if (!theta) return []
-    const groups: Record<number, { t: number; call_theta: number; put_theta: number }[]> = {}
-    theta.forEach(d => {
-      if (!groups[d.spx_strike]) groups[d.spx_strike] = []
-      groups[d.spx_strike].push({ t: d.t, call_theta: d.call_theta, put_theta: d.put_theta })
-    })
-    return Object.entries(groups)
-      .slice(0, 6) // show at most 6 strikes
-      .map(([strike, data]) => ({ strike: Number(strike), data: data.sort((a, b) => a.t - b.t) }))
-  })()
+  // Theta: single t per strike — render call vs put bars by strike
+  const thetaBars = theta?.map(d => ({
+    spx_strike: d.spx_strike,
+    call_theta: d.call_theta,
+    put_theta: d.put_theta,
+  })).sort((a, b) => a.spx_strike - b.spx_strike) ?? []
 
   return (
     <div className="space-y-4">
@@ -64,45 +57,35 @@ export function Greeks() {
       <FilterBar />
 
       <div className="grid grid-cols-1 gap-4">
-        {/* 3D Greeks Surface */}
+        {/* Greek by Strike */}
         <ChartCard
-          title="Greeks Surface (3D)"
-          subtitle="Strike × DTE × Greek value — high gamma near price = dealer hedge clusters"
+          title="Greek Exposure by Strike"
+          subtitle={GREEK_DESCRIPTIONS[selectedGreek]?.short}
           controls={
             <select className="select" value={selectedGreek} onChange={e => setSelectedGreek(e.target.value)}>
               {GREEK_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
           }
         >
-          {surfaceLoading ? <LoadingSpinner height="h-80" /> : plotData ? (
-            <Plot
-              data={[{
-                type: 'surface',
-                x: plotData.x,
-                y: plotData.y,
-                z: plotData.z,
-                colorscale: 'Viridis',
-                showscale: true,
-              }] as any[]}
-              layout={{
-                autosize: true,
-                height: 400,
-                paper_bgcolor: '#1e293b',
-                plot_bgcolor: '#1e293b',
-                font: { color: '#94a3b8', size: 10 },
-                margin: { l: 0, r: 0, t: 20, b: 0 },
-                scene: {
-                  xaxis: { title: 'DTE (t)', gridcolor: '#334155', zerolinecolor: '#475569' },
-                  yaxis: { title: 'SPX Strike', gridcolor: '#334155', zerolinecolor: '#475569' },
-                  zaxis: { title: selectedGreek, gridcolor: '#334155', zerolinecolor: '#475569' },
-                },
-              }}
-              config={{ displayModeBar: false }}
-              style={{ width: '100%' }}
-              useResizeHandler
-            />
-          ) : (
-            <div className="h-80 flex items-center justify-center text-surface-muted text-sm">No data</div>
+          {GREEK_DESCRIPTIONS[selectedGreek] && (
+            <p className="text-xs text-surface-muted mb-3 leading-relaxed">
+              {GREEK_DESCRIPTIONS[selectedGreek].detail}
+            </p>
+          )}
+          {surfaceLoading ? <LoadingSpinner height="h-80" /> : (
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={surfaceBars} barCategoryGap={1}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis
+                  dataKey="spx_strike"
+                  tick={TICK_STYLE}
+                  interval={Math.max(1, Math.floor(surfaceBars.length / 10))}
+                />
+                <YAxis tick={TICK_STYLE} domain={['auto', 'auto']} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => v.toFixed(4)} />
+                <Bar dataKey="value" name={selectedGreek} fill="#6366f1" />
+              </BarChart>
+            </ResponsiveContainer>
           )}
         </ChartCard>
 
@@ -133,31 +116,22 @@ export function Greeks() {
             )}
           </ChartCard>
 
-          {/* Theta Decay */}
+          {/* Theta by Strike */}
           <ChartCard
-            title="Theta Decay Curves"
-            subtitle="Theta accelerates nonlinearly after 21 DTE (t ≈ 0.058)"
+            title="Theta by Strike"
+            subtitle="Call and put theta at current DTE — larger negative = faster decay"
           >
             {thetaLoading ? <LoadingSpinner /> : (
               <ResponsiveContainer width="100%" height={260}>
-                <LineChart>
+                <BarChart data={thetaBars}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="t" type="number" domain={['auto', 'auto']} tick={TICK_STYLE} label={{ value: 'DTE (t)', position: 'insideBottom', fill: '#64748b', fontSize: 10 }} />
+                  <XAxis dataKey="spx_strike" tick={TICK_STYLE} interval={Math.max(1, Math.floor(thetaBars.length / 8))} />
                   <YAxis tick={TICK_STYLE} />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number) => v.toFixed(4)} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {strikeGroups.map((sg, i) => (
-                    <Line
-                      key={sg.strike}
-                      data={sg.data}
-                      dataKey="call_theta"
-                      name={`Strike ${sg.strike}`}
-                      stroke={COLORS[i % COLORS.length]}
-                      dot={false}
-                      strokeWidth={1.5}
-                    />
-                  ))}
-                </LineChart>
+                  <Bar dataKey="call_theta" name="Call Theta" fill="#34d399" />
+                  <Bar dataKey="put_theta"  name="Put Theta"  fill="#f87171" />
+                </BarChart>
               </ResponsiveContainer>
             )}
           </ChartCard>

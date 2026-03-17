@@ -31,6 +31,8 @@ def query(sql: str, params: list[Any] | None = None) -> list[dict]:
             result = con.execute(sql, params).fetchdf()
         else:
             result = con.execute(sql).fetchdf()
+        # Replace NaN/inf with None so FastAPI serialises them as JSON null
+        result = result.where(result.notna(), other=None)
         return result.to_dict(orient="records")
     finally:
         con.close()

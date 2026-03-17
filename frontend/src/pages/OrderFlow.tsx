@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { format } from 'date-fns'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, BarChart, Bar, Legend, ScatterChart, Scatter,
+  CartesianGrid, BarChart, Bar, Legend,
 } from 'recharts'
 import { ChartCard } from '../components/ChartCard'
 import { FilterBar } from '../components/FilterBar'
@@ -13,7 +13,7 @@ import { useHeatmap, useHistogram, useSpread, useDepth } from '../hooks/useChart
 export function OrderFlow() {
   const toParams = useFilterStore(s => s.toParams)
   const params = toParams()
-  const [logScale, setLogScale] = useState(true)
+  const [logScale, setLogScale] = useState(false)
 
   const { data: heatmap, isLoading: heatLoading } = useHeatmap(params)
   const { data: histogram, isLoading: histLoading } = useHistogram(params)
@@ -36,16 +36,19 @@ export function OrderFlow() {
     return counts.map((c, i) => ({ range: `${(i * step).toFixed(0)}`, count: c }))
   }, [histogram])
 
-  // Depth: separate bid and ask
+  // Depth: separate bid and ask, limited to top 40 strikes by combined volume
   const depthData = useMemo(() => {
     if (!depth) return []
     const byStrike: Record<number, { strike: number; bid: number; ask: number }> = {}
     depth.forEach(d => {
       if (!byStrike[d.future_strike]) byStrike[d.future_strike] = { strike: d.future_strike, bid: 0, ask: 0 }
-      if (d.Side === 'Bid') byStrike[d.future_strike].bid = d.total_size
-      if (d.Side === 'Ask') byStrike[d.future_strike].ask = -d.total_size
+      if (d.Side === 'Bid') byStrike[d.future_strike].bid = d.total_size ?? 0
+      if (d.Side === 'Ask') byStrike[d.future_strike].ask = -(d.total_size ?? 0)
     })
-    return Object.values(byStrike).sort((a, b) => a.strike - b.strike)
+    return Object.values(byStrike)
+      .sort((a, b) => (Math.abs(b.bid) + Math.abs(b.ask)) - (Math.abs(a.bid) + Math.abs(a.ask)))
+      .slice(0, 40)
+      .sort((a, b) => a.strike - b.strike)
   }, [depth])
 
   // Heatmap: aggregate strikes as a time series for quick preview
@@ -75,9 +78,9 @@ export function OrderFlow() {
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={heatSeries}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="time_bucket" tickFormatter={v => format(new Date(v), 'HH:mm')} tick={{ fill: '#64748b', fontSize: 10 }} />
+                <XAxis dataKey="time_bucket" tickFormatter={v => format(new Date(v.replace(' ', 'T')), 'HH:mm')} tick={{ fill: '#64748b', fontSize: 10 }} />
                 <YAxis tick={{ fill: '#64748b', fontSize: 10 }} />
-                <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }} labelFormatter={v => format(new Date(v), 'HH:mm:ss')} />
+                <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }} labelFormatter={v => format(new Date(String(v).replace(' ', 'T')), 'HH:mm:ss')} />
                 <Line dataKey="total_size" name="Total MBO Size" stroke="#6366f1" dot={false} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -141,8 +144,8 @@ export function OrderFlow() {
                 <YAxis tick={{ fill: '#64748b', fontSize: 10 }} />
                 <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }} formatter={(v: number) => Math.abs(v).toFixed(0)} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="bid" name="Bid" fill="#34d399" stackId="a" />
-                <Bar dataKey="ask" name="Ask" fill="#f87171" stackId="a" />
+                <Bar dataKey="bid" name="Bid" fill="#34d399" />
+                <Bar dataKey="ask" name="Ask" fill="#f87171" />
               </BarChart>
             </ResponsiveContainer>
           )}

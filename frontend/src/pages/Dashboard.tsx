@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { format } from 'date-fns'
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts'
 import { KPICard } from '../components/KPICard'
 import { ChartCard } from '../components/ChartCard'
@@ -21,7 +21,7 @@ export function Dashboard() {
 
   const recentPs = useMemo(() => {
     if (!ps) return []
-    return ps.slice(-50)
+    return ps.slice(-500)
   }, [ps])
 
   const basisSample = useMemo(() => {
@@ -63,7 +63,7 @@ export function Dashboard() {
         {/* ES vs SPX Basis */}
         <ChartCard
           title="ES vs SPX Basis"
-          subtitle="Futures lead/lag indicator — basis = ES/100 − SPX"
+          subtitle="Basis (left) vs ES &amp; SPX price (right) — divergence signals imminent move"
         >
           {basisLoading ? (
             <LoadingSpinner />
@@ -73,16 +73,19 @@ export function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis
                   dataKey="time_bucket"
-                  tickFormatter={v => format(new Date(v), 'HH:mm')}
+                  tickFormatter={v => format(new Date(String(v).replace(' ', 'T')), 'HH:mm')}
                   tick={{ fill: '#64748b', fontSize: 10 }}
                 />
-                <YAxis tick={{ fill: '#64748b', fontSize: 10 }} domain={['auto', 'auto']} />
+                <YAxis yAxisId="left" tick={{ fill: '#64748b', fontSize: 10 }} domain={['auto', 'auto']} label={{ value: 'Basis', angle: -90, position: 'insideLeft', fill: '#6366f1', fontSize: 10 }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: '#64748b', fontSize: 10 }} domain={['auto', 'auto']} label={{ value: 'Price', angle: 90, position: 'insideRight', fill: '#64748b', fontSize: 10 }} />
                 <Tooltip
                   contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
-                  labelFormatter={v => format(new Date(v), 'HH:mm:ss')}
+                  labelFormatter={v => format(new Date(String(v).replace(' ', 'T')), 'HH:mm:ss')}
                 />
-                <Line dataKey="basis" name="Basis" stroke="#6366f1" dot={false} strokeWidth={2} />
-                <Line dataKey="spx_price" name="SPX" stroke="#34d399" dot={false} strokeWidth={1} strokeDasharray="4 2" />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line yAxisId="left"  dataKey="basis"     name="Basis" stroke="#6366f1" dot={false} strokeWidth={2} />
+                <Line yAxisId="right" dataKey="es_price"  name="ES"    stroke="#f59e0b" dot={false} strokeWidth={1.5} />
+                <Line yAxisId="right" dataKey="spx_price" name="SPX"   stroke="#34d399" dot={false} strokeWidth={1} strokeDasharray="4 2" />
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -101,15 +104,30 @@ export function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis
                   dataKey="timestamp"
-                  tickFormatter={v => format(new Date(v), 'HH:mm')}
+                  tickFormatter={v => format(new Date(String(v).replace(' ', 'T')), 'HH:mm')}
                   tick={{ fill: '#64748b', fontSize: 10 }}
                 />
                 <YAxis tick={{ fill: '#64748b', fontSize: 10 }} domain={['auto', 'auto']} />
                 <Tooltip
                   contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
-                  labelFormatter={v => format(new Date(v), 'HH:mm:ss')}
+                  labelFormatter={v => format(new Date(String(v).replace(' ', 'T')), 'HH:mm:ss')}
                 />
                 <Line dataKey="spx_price" name="SPX" stroke="#94a3b8" dot={false} strokeWidth={1.5} />
+                <Line
+                  dataKey="spx_price"
+                  name="P/S Events"
+                  stroke="none"
+                  legendType="none"
+                  isAnimationActive={false}
+                  dot={(props: any) => {
+                    const { cx, cy, payload } = props
+                    if (payload.MBO_pulling_stacking < 0)
+                      return <circle key={`p${cx}`} cx={cx} cy={cy} r={4} fill="#f87171" stroke="#1e293b" strokeWidth={1} />
+                    if (payload.MBO_pulling_stacking > 0)
+                      return <circle key={`s${cx}`} cx={cx} cy={cy} r={4} fill="#34d399" stroke="#1e293b" strokeWidth={1} />
+                    return <g key={`n${cx}`} />
+                  }}
+                />
               </LineChart>
             </ResponsiveContainer>
           )}

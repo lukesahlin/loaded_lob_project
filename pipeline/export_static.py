@@ -9,6 +9,7 @@ Usage:
 """
 import argparse
 import json
+import math
 import os
 import statistics
 import sys
@@ -36,7 +37,13 @@ def tbl(parquet_path: str) -> str:
 
 
 def run(con: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
-    return con.execute(sql).fetchdf().to_dict(orient="records")
+    rows = con.execute(sql).fetchdf().to_dict(orient="records")
+    # Replace float NaN/inf with None so json.dumps produces valid JSON null
+    return [
+        {k: (None if isinstance(v, float) and not math.isfinite(v) else v)
+         for k, v in row.items()}
+        for row in rows
+    ]
 
 
 def write(out_dir: Path, name: str, data: object) -> None:
