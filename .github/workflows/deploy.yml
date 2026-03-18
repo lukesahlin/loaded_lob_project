@@ -22,17 +22,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Python dependencies
-        run: pip install polars pyarrow duckdb pytz
-
-      - name: Generate static chart data from Parquet
-        run: python pipeline/export_static.py --parquet data/flow.parquet --out frontend/public/data
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:

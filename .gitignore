@@ -20,8 +20,9 @@ data/flow.parquet
 data/flow/
 pipeline/processed_files.log
 
-# Pre-generated static JSON (rebuilt in CI, not committed)
-frontend/public/data/
+# Pre-generated static JSON — committed, regenerate locally with:
+#   python pipeline/export_static.py --parquet data/flow.parquet --out frontend/public/data
+# frontend/public/data/  <-- intentionally tracked
 
 # ── Node / Frontend ───────────────────────────────────────────────────────────
 frontend/node_modules/
