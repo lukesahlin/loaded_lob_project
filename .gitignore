@@ -14,8 +14,9 @@ venv/
 env/
 
 # ── Data ──────────────────────────────────────────────────────────────────────
-data/raw/*.csv
-# data/flow.parquet is committed (10 MB) so GitHub Actions can export static JSON
+data/raw/
+data/urls_*.txt
+data/flow.parquet
 data/flow/
 pipeline/processed_files.log
 
