@@ -9,6 +9,7 @@ A full-stack analytics dashboard for high-frequency options Market-By-Order (MBO
 | Dashboard | [lukesahlin.github.io/loaded_lob_project/](https://lukesahlin.github.io/loaded_lob_project/) |
 | Order Flow | [#/order-flow](https://lukesahlin.github.io/loaded_lob_project/#/order-flow) |
 | Signals | [#/signals](https://lukesahlin.github.io/loaded_lob_project/#/signals) |
+| Market Levels | [#/Market Levels](https://lukesahlin.github.io/loaded_lob_project/#/market-levels) |
 | Greeks | [#/greeks](https://lukesahlin.github.io/loaded_lob_project/#/greeks) |
 | Analytics | [#/analytics](https://lukesahlin.github.io/loaded_lob_project/#/analytics) |
 
