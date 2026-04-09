@@ -114,6 +114,20 @@ export function useScatter(params: Record<string, string>) {
   })
 }
 
+export function useGex(params: Record<string, string>) {
+  return useQuery({
+    queryKey: ['gex', params],
+    queryFn: () => fetchJson<{ spx_strike: number; spx_price: number; long_gex: number; short_gex: number; net_gex: number }[]>('/greeks/gex', params),
+  })
+}
+
+export function useGexIntraday(params: Record<string, string>) {
+  return useQuery({
+    queryKey: ['gex_intraday', params],
+    queryFn: () => fetchJson<{ time_bucket: string; spx_price: number; net_gex: number; long_gex: number; short_gex: number }[]>('/greeks/gex_intraday', params),
+  })
+}
+
 export function useCorrelation(params: Record<string, string>) {
   return useQuery({
     queryKey: ['correlation', params],

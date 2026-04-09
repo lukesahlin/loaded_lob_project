@@ -180,6 +180,54 @@ def export_all(parquet_path: str, out_dir: Path) -> None:
         FROM {t} GROUP BY spx_strike ORDER BY spx_strike LIMIT 5000
     """))
 
+    print("Exporting GEX...")
+
+    # gex — gamma exposure by strike (Bid = dealer long, Ask = dealer short)
+    write(out_dir, "gex", run(con, f"""
+        WITH sized AS (
+            SELECT
+                spx_strike,
+                call_gamma,
+                spx_price,
+                Side,
+                list_aggregate(json_extract(MBO, '$[*]')::DOUBLE[], 'sum') AS mbo_size
+            FROM {t}
+        )
+        SELECT
+            spx_strike,
+            AVG(spx_price)                                                                   AS spx_price,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Bid' THEN 1.0 ELSE 0.0 END)      AS long_gex,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Ask' THEN 1.0 ELSE 0.0 END)      AS short_gex,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Bid' THEN 1.0 ELSE -1.0 END)     AS net_gex
+        FROM sized
+        GROUP BY spx_strike
+        ORDER BY spx_strike
+        LIMIT 500
+    """))
+
+    # gex_intraday — aggregate dealer gamma exposure per time bucket
+    write(out_dir, "gex_intraday", run(con, f"""
+        WITH sized AS (
+            SELECT
+                time_bucket(INTERVAL '{BUCKET_SECONDS} seconds', timestamp::TIMESTAMPTZ) AS tb,
+                spx_price,
+                call_gamma,
+                Side,
+                list_aggregate(json_extract(MBO, '$[*]')::DOUBLE[], 'sum') AS mbo_size
+            FROM {t}
+        )
+        SELECT
+            tb                                                                               AS time_bucket,
+            AVG(spx_price)                                                                   AS spx_price,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Bid' THEN 1.0 ELSE -1.0 END)     AS net_gex,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Bid' THEN 1.0 ELSE 0.0 END)      AS long_gex,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Ask' THEN 1.0 ELSE 0.0 END)      AS short_gex
+        FROM sized
+        GROUP BY tb
+        ORDER BY tb
+        LIMIT 1000
+    """))
+
     # correlation matrix
     print("Exporting correlation matrix (may take a moment)...")
     cols_sql = ", ".join(GREEK_COLS)

@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom'
 
 const navItems = [
-  { to: '/',           label: 'Dashboard'      },
-  { to: '/order-flow', label: 'Order Flow'     },
-  { to: '/signals',    label: 'Signals'        },
-  { to: '/greeks',     label: 'Greeks'         },
-  { to: '/analytics',  label: 'Analytics'      },
+  { to: '/',                label: 'Dashboard'      },
+  { to: '/order-flow',      label: 'Order Flow'     },
+  { to: '/signals',         label: 'Signals'        },
+  { to: '/market-levels',   label: 'Market Levels'  },
+  { to: '/greeks',          label: 'Greeks'         },
+  { to: '/analytics',       label: 'Analytics'      },
 ]
 
 export function Layout() {

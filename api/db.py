@@ -38,6 +38,10 @@ def query(sql: str, params: list[Any] | None = None) -> list[dict]:
         con.close()
 
 
+MARKET_OPEN  = "09:30:00"
+MARKET_CLOSE = "16:15:00"  # SPX options trade until 4:15 PM ET
+
+
 def build_where(
     start: str | None,
     end: str | None,
@@ -47,8 +51,15 @@ def build_where(
     dte_min: float | None,
     dte_max: float | None,
 ) -> tuple[str, list[Any]]:
-    """Build a WHERE clause and corresponding parameter list."""
-    clauses: list[str] = []
+    """Build a WHERE clause and corresponding parameter list.
+
+    Always restricts to regular market hours (9:30 AM – 4:15 PM ET).
+    Timestamps in the Parquet file are US/Eastern so no tz conversion needed.
+    """
+    clauses: list[str] = [
+        f"CAST(timestamp AS TIME) >= TIME '{MARKET_OPEN}'",
+        f"CAST(timestamp AS TIME) <= TIME '{MARKET_CLOSE}'",
+    ]
     params: list[Any] = []
 
     if start:

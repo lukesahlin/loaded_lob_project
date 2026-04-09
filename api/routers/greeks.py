@@ -131,6 +131,80 @@ def scatter(
     return query(sql, params)
 
 
+@router.get("/gex")
+def gex(
+    start: str | None = None,
+    end: str | None = None,
+    limit: int = Query(500, ge=1, le=5000),
+):
+    """Gamma Exposure (GEX) by SPX strike.
+
+    net_gex = Σ(call_gamma × mbo_size) − Σ(put_gamma × mbo_size)
+    Positive → dealers long gamma → price magnet / stabiliser.
+    Negative → dealers short gamma → price amplifier / accelerant.
+    """
+    where, params = build_where(start, end, None, None, None, None, None)
+    tbl = parquet_ref()
+    sql = f"""
+        WITH sized AS (
+            SELECT
+                spx_strike,
+                call_gamma,
+                spx_price,
+                Side,
+                list_aggregate(json_extract(MBO, '$[*]')::DOUBLE[], 'sum') AS mbo_size
+            FROM {tbl}
+            {where}
+        )
+        SELECT
+            spx_strike,
+            AVG(spx_price)                                                                   AS spx_price,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Bid' THEN 1.0 ELSE 0.0 END)      AS long_gex,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Ask' THEN 1.0 ELSE 0.0 END)      AS short_gex,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Bid' THEN 1.0 ELSE -1.0 END)     AS net_gex
+        FROM sized
+        GROUP BY spx_strike
+        ORDER BY spx_strike
+        LIMIT {limit}
+    """
+    return query(sql, params)
+
+
+@router.get("/gex_intraday")
+def gex_intraday(
+    start: str | None = None,
+    end: str | None = None,
+    bucket_minutes: int = Query(5, ge=1, le=60),
+    limit: int = Query(1000, ge=1, le=10000),
+):
+    """Aggregate net GEX per time bucket — shows how dealer gamma exposure shifts intraday."""
+    where, params = build_where(start, end, None, None, None, None, None)
+    tbl = parquet_ref()
+    sql = f"""
+        WITH sized AS (
+            SELECT
+                time_bucket(INTERVAL '{bucket_minutes} minutes', timestamp) AS tb,
+                spx_price,
+                call_gamma,
+                Side,
+                list_aggregate(json_extract(MBO, '$[*]')::DOUBLE[], 'sum') AS mbo_size
+            FROM {tbl}
+            {where}
+        )
+        SELECT
+            tb                                                                               AS time_bucket,
+            AVG(spx_price)                                                                   AS spx_price,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Bid' THEN 1.0 ELSE -1.0 END)     AS net_gex,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Bid' THEN 1.0 ELSE 0.0 END)      AS long_gex,
+            SUM(call_gamma * mbo_size * CASE WHEN Side = 'Ask' THEN 1.0 ELSE 0.0 END)      AS short_gex
+        FROM sized
+        GROUP BY tb
+        ORDER BY tb
+        LIMIT {limit}
+    """
+    return query(sql, params)
+
+
 @router.get("/correlation")
 def correlation(
     start: str | None = None,
